@@ -2,20 +2,21 @@
 
 ## Prioritized Plan of Action
 
-### Phase 1 MVP
-1. Assign unique UID/GID to each microservice.
-2. Develop install scripts and systemd services to bring up EdgeX framework on generic Linux platform.
-3. Create PKI at runtime that is unique for each boot (remove static PKI).
-4. Block startup of core services until PKI is available.
-5. Remove TLS skip-verify overrides from client services.
-6. Create Vault namespace standard for per-service and shared secrets.
-7. Revoke previously generated tokens on every reboot.
-8. Generate per-service tokens at system startup.
-9. Revoke Vault root token.
-10. Implement Vault cubbyhole response-wrapping.
-11. Implement Vault secrets client library.
-12. Enable MVP for container-based EdgeX.
-13. Enable MVP for snap-based EdgeX.
+### Phase 0 (tasks expected to be done in Edinburgh)
+
+1. Create Vault namespace standard for per-service and shared secrets.
+
+### Phase 1
+
+1. Develop test infrastructure that simulates EdgeX supported bring-up models supported by System Management Agent.
+2. Create PKI at runtime that is unique for each boot (remove static PKI).
+3. Block startup of core services until PKI is available.
+4. Remove TLS skip-verify overrides from client services.
+5. Revoke previously generated tokens on every reboot.
+6. Generate per-service tokens at system startup.
+7. Revoke Vault root token.
+8. Implement Vault cubbyhole response-wrapping.
+9. Implement Vault secrets client library (integrate with registration service client library?)
 
 ### Phase 2
 1. Generate unique-per-installation PGP key pair.
