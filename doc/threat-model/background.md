@@ -48,4 +48,15 @@ While it is a good start, encrypting the root secrets does not itself result in 
 Through threat modeling, we can identify assets, adversaries, threats, and mitigations against those threats.  We can then make a prioritized implementation plan to address those threats.
 
 
+## Thoughts on System Management Agent
 
+The [system management design](https://wiki.edgexfoundry.org/download/attachments/17498212/System%20Management%20Design-v8-Delhi-final.pdf?version=1&modificationDate=1534870659000&api=v2) proposes the existence of an agent that can start and stop EdgeX services via two [executors](https://wiki.edgexfoundry.org/display/FA/Systems+Management+Working+Group?preview=/329501/27492359/SMA-start-stop-restart-interface-v4.pdf): the docker-compose executor and the Linux OS executor. There are both opportunities and challenges for integrating with the system management agent.
+
+Opportunties for SMA integration:
+* System Management Agent is in an ideal position to inject some bootstrapping secrets via tmpfs or an environment variable into the services that it starts. This is the best case scenario for secret management as the service need not then prove its identity at a later phase.
+
+Challenges for SMA integration:
+* SMA is currently an optional service.  If only the SMA is allowed to inject a bootstrapping secret into a service then it becomes a required element of the secret management stack.
+* The Linux OS executor does not require the started services to have separate UIDs/GIDs. The lack of enforced isolation between services started this way would invalidate many of the threat migitigations for secret management.
+* The docker-compose executor would provide for service isolation, but it would have to modify docker-compose files on-the-fly in order to inject bootstrapping secrets.
+* In order for the SMA to obtain services' bootstrapping secrets, SMA would have to authenticate itself to another microservice that provides such secrets, or be started with a privileged token passed to SMA so that SMA could generate the bootstrapping secrets itself.  Both of these imply that SMA would have to be started later in the boot phase after the secret management subsystem was initialized.
