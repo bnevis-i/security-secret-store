@@ -2,12 +2,35 @@
 
 ## Assumptions
 
-The Edge-X Framework is a API-based software framework that runs on a standard Linux* runtime. Very little is knowable about the specific use case. For the purpose of the threat model, we make several broad assumptions:
+The EdgeX Framework is a API-based software framework that strives to be platform and architecture-independent. Although very little is knowable about the actual runtime, the reference code supports the following runtime environments "out of box":
 
-* No process isolation technologies are in use besides standard Linux* users and processes. Specific runtime instantiations of the framework may use containers, snaps, virtual machines, or a combination of these, but it is equally valid the run the entire framework as standard processes. Services may have direct unfettered access to the host file system.
-* Hardening of the underlying platform is out-of-scope. The framework cannot assume existence of full disk encryption, secure boot, or special-purpose security hardware. As such, the framework must support a software-only implementation, but can be designed in an extensible manner such that it can take advantage of hardening that has been performed at a lower level. TPM local attestation falls into this category.
-* The framework is deployed on a device with inbound and outbound Internet connectivity. This is a pessimistic assumption to introduce an anonymous network adversary.
-* The framework may be deployed on a device with limited physical security. Simple hardware attacks such as theft, disk cloning, booting into BIOS setup, et cetera are possible. Advanced hardware attacks are out-of-scope.
+* A containerized implementation based on Docker.
+* A containerized implementation based on Snaps.
+
+The threat model presented in this document analyzes the secret management subsystem of EdgeX, and has considerations for both of the above runtime environments, both of which implement protections beyond a stock user/process runtime environment.  In generic terms, the secret management threat model assumes:
+
+* Services do not have unfettered access to the host file system.
+* Services are protected from each other and communicate only through defined IPC mechanisms.
+* Services do not run with privilege except where noted.
+* The privileged administrator (`root` account on the host in Linux) can bypass all access controls.
+* There are no unauthorized privileged administrators operating on the device.
+* The framework may be deployed on a device with inbound and outbound Internet connectivity. This is a pessimistic assumption to introduce an anonymous network adversary.
+* The framework may be deployed on a device with limited physical security. This is a pessimistic assumption to introduce simple hardware attacks such as disk cloning.
+
+Any particular of implementation of Edge-X should perform its own threat modeling activity as part of securing the implementation, and may use this document to supplement analysis of the secret management subsystem of EdgeX.
+
+## Recommended Hardening 
+
+Physical security and hardening of the underlying platform is out-of-scope for implementation by the EdgeX reference code.  But since the privileged administrator can bypass all access controls, such hardening is nevertheless recommended: the threat model assumes that there are no unauthorized privileged administrators.  One should look to industry standard hardening guides, such as [CIS Benchmarks](https://www.cisecurity.org/cis-benchmarks/) for hardening operating system and container runtimes.  Additionally, typical EdgeX base platforms are likely to support the following types of hardening out-of-the-box,(1) and these should be enabled where possible.
+
+* Verified boot ("secure boot") with a hardware root of trust.  This refers to a trust chain that starts at power-on, verifying the system firmware, boot loaders, drivers, and the core components of the operating system.  Verified boot helps to ensure that an attacker cannot obtain privileged administrator role during the boot process.
+* File system integrity (e.g. dm-verity) and/or full disk encryption (e.g. LUKS).  Verified/secure boot typically does not apply to user-mode process started after the kernel has booted.  File system integrity checking and/or encryption is an easy way to reduce exposure to off-line tampering such such as resetting the administrator password or installing a back door.
+
+The EdgeX secret store provides hooks for utilizing hardware secure storage to ensure that secrets stored on the device can only be decrypted on that device.  Implementations should use hardware security features where a suitable plugin is available.  Examples include enclaves, trusted execution environments, and TPM hardware.
+
+Footnotes:
+
+(1) Most Linux distributions support verified/secure boot.  Microsoft Windows enables verified/secure boot by default, and can automatically use TPM hardware if full disk encryption is enabled and will fail to decrypt if verified/secure boot is disabled.
 
 ## High-level Security Objectives / sub-objectives
 
