@@ -8,5 +8,6 @@
 2. [Known Vulnerabilities](known_vulnerabilities.md)
 3. [Architecture Diagrams](architecture_diagrams.md)
 4. [Threat Model](threat_model.md)
-5. [Remediation Plan](remediation_plan.md) (WIP informed by threat model)
-
+5. [Detailed Design](detailed_design.md)
+6. [Security Test Plan](security_test_plan.md)
+7. [Task List](task_list.md) (WIP)
