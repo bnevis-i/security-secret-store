@@ -1,21 +1,43 @@
-# Remediation Plan
+# Task List
 
 ## Prioritized Plan of Action
 
-### Phase 0 (tasks expected to be done in Edinburgh)
-
-1. Create Vault namespace standard for per-service and shared secrets.
-
 ### Phase 1
 
-1. Develop test infrastructure that simulates EdgeX supported bring-up models supported by System Management Agent.
-2. Create PKI at runtime that is unique for each boot (remove static PKI).
+1. Develop test infrastructure for framework bringup
+
+   a. Docker-based bringup
+
+   b. Snap-based bringup
+
+2. Support enhanced PKI initialization flow
+
+   a. Write test cases to fail PKI practices that will be changed.
+
+   b. Move PKI generation to standalone container
+
+   c. Generate PKI in scratch area
+
+   d. Add option to shred of CA keying material after PKI generation
+
+   e. Add hooks to customize deployment location of PKI artifacts including public CA certificates and private TLS keys for bootstrap services.
+
+   f. Implement PKI caching option
+
+   g. Implement option to pre-load PKI from an off-device CA
+
 3. Block startup of core services until PKI is available.
+
 4. Remove TLS skip-verify overrides from client services.
+
 5. Revoke previously generated tokens on every reboot.
+
 6. Generate per-service tokens at system startup.
+
 7. Revoke Vault root token.
+
 8. Implement Vault cubbyhole response-wrapping.
+
 9. Implement Vault secrets client library (integrate with registration service client library?)
 
 ### Phase 2
@@ -26,17 +48,3 @@
 5. Token issuance driven by service registration.
 6. Automated revocation of Vault tokens for failed services.
 7. Self-token-rotation (token issuing service).
-
-### Phase 3
-
-1. TPM hardware secure storage (unauthenticated) for Vault master key.
-2. Use TPM persistent handle and NVRAM for Vault master key.
-3. Implement additional TPM authentication scenarios (simple PCR, PCR policy, and (HMAC-KDF?) password).
-4. TPM-based PKI.
-5. Once-per-boot decryption of Vault master key.
-6. Token-issuing-token encryption at rest or recovery of token-issuing-token from HW secure storage.
-
-### Phase 4
-
-1. PKCS11 hardware secure storage for Vault master key
-2. Implement Mandatory Access Control for EdgeX services.
