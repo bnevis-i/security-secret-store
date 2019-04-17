@@ -1,50 +1,38 @@
 # Task List
 
 ## Prioritized Plan of Action
-
-### Phase 1
-
-1. Develop test infrastructure for framework bringup
-
+1. Develop test infrastructure for framework bring-up
    a. Docker-based bringup
-
    b. Snap-based bringup
-
 2. Support enhanced PKI initialization flow
-
    a. Write test cases to fail PKI practices that will be changed.
-
    b. Move PKI generation to standalone container
-
    c. Generate PKI in scratch area
-
    d. Add option to shred of CA keying material after PKI generation
-
-   e. Add hooks to customize deployment location of PKI artifacts including public CA certificates and private TLS keys for bootstrap services.
-
+   e. Add hooks to customize deployment location of PKI artifacts including public CA certificates and private TLS keys for bootstrap services
    f. Implement PKI caching option
-
    g. Implement option to pre-load PKI from an off-device CA
-
-3. Block startup of core services until PKI is available.
-
-4. Remove TLS skip-verify overrides from client services.
-
-5. Revoke previously generated tokens on every reboot.
-
-6. Generate per-service tokens at system startup.
-
-7. Revoke Vault root token.
-
-8. Implement Vault cubbyhole response-wrapping.
-
-9. Implement Vault secrets client library (integrate with registration service client library?)
-
-### Phase 2
-1. Generate unique-per-installation PGP key pair.
-2. Derive PGP passphrase with an HMAC-KDF using hardware fingerprint as IKM and random salt.
-3. Pass PKI and Vault token secrets via tmpfs volumes.
-4. Revoke CA and intermediates after creating leaf certificates.
-5. Token issuance driven by service registration.
-6. Automated revocation of Vault tokens for failed services.
-7. Self-token-rotation (token issuing service).
+   h. Block startup of core services until PKI is available
+   i. Remove TLS skip-verify overrides from client services
+3. Security enhancement to Vault provisoning
+   a. Create `SALT_SCRIPT` and hook and test cases
+   b. Create `IKM_SCRIPT` and hook and test cases
+   c. Create `KDF_SCRIPT` (software SHA-256) and hook and test cases
+   d. Parameterize Vault master key encryption algorithm with test cases
+   e. Implement AES-256-GCM encryption of Vault master key with test cases
+   f. Create token-issuing-token in tmpfs area (e.g. SCRATCH/service/token-issuing/vault-token) where for containers SCRATCH is /run and for snaps SCRATCH is /run/snap.edgexfoundry.$snapid
+   g. Revoke root token by default and regenerate on-the-fly as needed
+4. Generate per-service tokens at system startup. Implement Vault secrets client library (integrate with registration service client library?)
+   a. Implement `file-server` daemon that bulk-generates tokens and places them in configurable mailbox location
+   b. Implement `unix-server-docker` daemon that issues tokens on-demand after authenticating peer PID against Docker
+   c. Start `${TOKEN_SERVER}` daemon process after Vault is unsealed (assuming)
+   d. Rename vault-worker to security-service
+5. Enhancements to go-mod-core-security
+   a. Implement `FILE_TOKEN_HANDLER` to retrieve Vault token from specified file path.
+   b. Implement `UNIX_TOKEN_HANDLER` to retrieve Vault token from Unix domain socket
+   c. Accept `${TOKEN_URL}` parameter that points to location of Vault token
+6. Implement integration tests
+   a. `file://` token handler
+   b. `unix://` token handler
+7. Revoke previously generated tokens on every reboot
+8. Self-token-rotation (token issuing service)
