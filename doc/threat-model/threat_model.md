@@ -11,9 +11,9 @@ The threat model presented in this document analyzes the secret management subsy
 
 * Services do not have unfettered access to the host file system.
 * Services are protected from each other and communicate only through defined IPC mechanisms.
+* The service location mechanism is trustworthy/non-spoofable. (Consul is not used for service location.)
 * Services do not run with privilege except where noted.
-* The privileged administrator (`root` account on the host in Linux) can bypass all access controls.
-* There are no unauthorized privileged administrators operating on the device.
+* There are no unauthorized privileged administrators operating on the device (privileged administrator can bypass all access controls).
 * The framework may be deployed on a device with inbound and outbound Internet connectivity. This is a pessimistic assumption to introduce an anonymous network adversary.
 * The framework may be deployed on a device with limited physical security. This is a pessimistic assumption to introduce simple hardware attacks such as disk cloning.
 
@@ -23,20 +23,30 @@ Any particular of implementation of Edge-X should perform its own threat modelin
 
 Physical security and hardening of the underlying platform is out-of-scope for implementation by the EdgeX reference code.  But since the privileged administrator can bypass all access controls, such hardening is nevertheless recommended: the threat model assumes that there are no unauthorized privileged administrators.  One should look to industry standard hardening guides, such as [CIS Benchmarks](https://www.cisecurity.org/cis-benchmarks/) for hardening operating system and container runtimes.  Additionally, typical EdgeX base platforms are likely to support the following types of hardening out-of-the-box,(1) and these should be enabled where possible.
 
-* Verified boot ("secure boot") with a hardware root of trust.  This refers to a trust chain that starts at power-on, verifying the system firmware, boot loaders, drivers, and the core components of the operating system.  Verified boot helps to ensure that an attacker cannot obtain privileged administrator role during the boot process.
+* Verified/secure boot with a hardware root of trust.  This refers to a trust chain that starts at power-on, verifying the system firmware, boot loaders, drivers, and the core components of the operating system.  Verified boot helps to ensure that an attacker cannot obtain a privileged administrator role during the boot process.
 * File system integrity (e.g. dm-verity) and/or full disk encryption (e.g. LUKS).  Verified/secure boot typically does not apply to user-mode process started after the kernel has booted.  File system integrity checking and/or encryption is an easy way to reduce exposure to off-line tampering such such as resetting the administrator password or installing a back door.
 
-The EdgeX secret store provides hooks for utilizing hardware secure storage to ensure that secrets stored on the device can only be decrypted on that device.  Implementations should use hardware security features where a suitable plugin is available.  Examples include enclaves, trusted execution environments, and TPM hardware.
+The EdgeX secret store provides hooks for utilizing hardware secure storage to ensure that secrets stored on the device can only be decrypted on that device.  Implementations should use hardware security features where a suitable plug-in is available.  For maximum benefit, hardware security should be combined verified/secure boot, file system protection, and other software-level hardening.
 
 Footnotes:
 
 (1) Most Linux distributions support verified/secure boot.  Microsoft Windows enables verified/secure boot by default, and can automatically use TPM hardware if full disk encryption is enabled and will fail to decrypt if verified/secure boot is disabled.
 
-## High-level Security Objectives / sub-objectives
+## Protections afforded by standard runtime environments
+
+### Docker-based runtimes
+
+### Snap-based runtimes
+
+## High-level Security Objectives
+
+### Security Objectives
+
+The security objectives call out the security goals of the architecture/design.  They are:
 
 * Ensure confidentiality, integrity, and availability of application secrets.
-  * Prevent off-line copying of application secrets by binding them to secure hardware storage.
-  * Reduce plain text exposure of sensitive data when software-only solutions are being utilized.
+  * Reduce plain text exposure of sensitive data.
+  * Design-in hooks for hardware secure storage.
 
 ## Assets
 
@@ -53,18 +63,19 @@ Primary assets are the assets at the level of the conceptual data model of the s
 Secondary assets are assets are used to support or protect the primary assets and are usually implementation details versus being part of the conceptual data model.
 
 
-| AssetId | Name                         | Description                                                  | Attack Points                       |
-| ------- | ---------------------------- | ------------------------------------------------------------ | ----------------------------------- |
-| S-1     | Vault service token          | Used by services to authenticate to vault and retrieve application secrets. | In-flight via API, at rest          |
-| S-3     | Vault token-issuing-token    | Used by the token issuing service to create vault service tokens and cubbyhole tokens for other services. | In-flight via API, at rest          |
-| S-4     | Vault root token             | A special token created at Vault initialization time that has all capabilities and never expires. | In-flight via API, at rest          |
-| S-5     | Vault master key             | A root secret that encrypts all of Vault's other secrets.    | In-flight via API, at rest, in-use. |
-| S-6     | Vault data store             | A data store encrypted with the Vault master key that contains the contents of the vault. | In storage                          |
-| S-7     | Consul data store            | Back-end storage engine for vault data store.                | In storage                          |
-| S-8     | On-device PKI (CA)           | Private keys for on-device PKI certificate authority.        | In use, in transit, in storage      |
-| S-9     | On-device PKI (intermediate) | Private keys for on-device PKI issuing authorities.          | In use, in transit, in storage      |
-| S-10    | On-device PKI (leaf)         | Private keys for TLS server authentication for on-device services (e.g. Vault service, Consul service) | In use, in transit, in storage      |
-| S-13    | PGP Password                 | Encrypts the PGP private key so that the PGP key is not stored plaintext at rest. | In use, at rest                     |
+| AssetId | Name                      | Description                                                  | Attack Points                       |
+| ------- | ------------------------- | ------------------------------------------------------------ | ----------------------------------- |
+| S-1     | Vault service token       | Used by services to authenticate to vault and retrieve application secrets. | In-flight via API, at rest          |
+| S-3     | Vault token-issuing-token | Used by the token issuing service to create vault service tokens and cubbyhole tokens for other services. | In-flight via API, at rest          |
+| S-4     | Vault root token          | A special token created at Vault initialization time that has all capabilities and never expires. | In-flight via API, at rest          |
+| S-5     | Vault master key          | A root secret that encrypts all of Vault's other secrets.    | In-flight via API, at rest, in-use. |
+| S-6     | Vault data store          | A data store encrypted with the Vault master key that contains the contents of the vault. | In storage                          |
+| S-7     | Consul data store         | Back-end storage engine for vault data store.                | In storage                          |
+| S-8     | CA key                    | Private keys for on-device PKI certificate authority.        | In use, in transit, in storage      |
+| S-9     | Issuing CA key            | Private keys for on-device PKI issuing authorities.          | In use, in transit, in storage      |
+| S-10    | Leaf TLS key              | Private keys for TLS server authentication for on-device services (e.g. Vault service, Consul service) | In use, in transit, in storage      |
+| S-13    | Derived encryption key    | Encrypts the PGP private key so that the PGP key is not stored plaintext at rest. | In use, at rest                     |
+| S-14    | IKM                       | Initial keying material as input to HMAC KDF                 | In use, in transit, in storage      |
 
 ## Attack Surfaces
 
@@ -72,13 +83,12 @@ This table lists components in the system architecture that have assets of poten
 
 | System Element             | Compromise Type | Assets Exposed                                               | Attack Method                                                |
 | -------------------------- | --------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Consul data store          | A               | Vault data store                                             | Delete data store or shut down Consul service                |
-| Consul REST API            | A               | Vault data store                                             | DoS against API                                              |
-| Vault REST API             | CIA             | Application secrets, all vault tokens and keys, Vault-based PKI issuing certs | Data channel snooping or data modification, DoS against API  |
-| Host file system           | CIA             | On-device PKI leaf certificates, vault cubbyhole tokens, sealed data objects, consul data store | Snooping or data modification, deletion of critical files    |
-| PKI initiazation agent     | CI              | On-device PKI                                                | Snooping generation of assets or forcing predictable PKI     |
-| Vault initialization agent | CI              | Vault master key, vault root token, token-issuing-token, TPM sealed data object | Snooping generation of assets or tampering with assets       |
-| Token issuing service      | CIA             | Token issuing token, cubbyhole tokens, service tokens        | Data channel snooping, tampering with asset policies, or forcing service down |
+| Consul API                 | A               | Consul data store, Vault data store                          | DoS against API                                              |
+| Vault API                  | CIA             | All application secrets, all vault tokens                    | Data channel snooping or data modification, DoS against API  |
+| Host file system           | CIA             | PKI private keys, Vault tokens, Vault master key, Vault store, Consul store | Snooping or data modification, deletion of critical files    |
+| PKI initiazation agent     | CI              | Private keys for on-device PKI                               | Snooping generation of assets or forcing predictable PKI     |
+| Vault initialization agent | CI              | Vault master key, Vault root token, token-issuing-token, encryption key for Vault master key | Snooping generation of assets or tampering with assets       |
+| Token server API           | CIA             | Token issuing token, service tokens                          | Data channel snooping, tampering with asset policies, or forcing service down |
 | Process memory             | CIA             | Most assets excluding hardware and  storage media            | Read or modify process memory through /proc or related IPC mechanisms |
 
 ## Adversaries
@@ -88,34 +98,35 @@ The adversary model is use-case specific, but for the sake of discussion assume 
 | Persona                                    | Motivation                                                   | Starting Access  | Skill / Effort |
 | ------------------------------------------ | ------------------------------------------------------------ | ---------------- | -------------- |
 | Thief (Larceny)                            | Quick cash by reselling stolen components.                   | None             | Low            |
-| Remote Hacker                              | Financial gain by harvesting resellable information or performing ransomware attacks via exploitable vulnerabilities. | Network          | Medium         |
-| Malicious Administrator                    | Out of scope. Cannot defend against attacks originating at level of system software. | N/A              | N/A            |
-| Malicious non-root service                 | Escalation of privilege.                                     | User mode access | Medium         |
-| Industrial Espionage / Malicious developer | Financial gain or harm by obtaining access to back-end systems and/or competitive data. | Unknown          | High           |
+| Remote hacker                              | Financial gain by harvesting resellable information or performing ransomware attacks via exploitable vulnerabilities. | Network          | Medium         |
+| Malicious administrator                    | Out of scope. Cannot defend against attacks originating at level of system software. | N/A              | N/A            |
+| Malicious non-privileged service           | Escalation of privilege.                                     | User mode access | Medium         |
+| Industrial espionage / Malicious developer | Financial gain or harm by obtaining access to back-end systems and/or competitive data. | Unknown          | High           |
 
-The malicious administrator is out of scope--there is nothing that the framework can to prevent a root-level process from performing MITM attacks to learning the secrets.
+The malicious administrator is out of scope: the threat model assumes that there are no unauthorized privileged administrators on the device. This must be ensured through hardening of the underlying platform, which is out of scope.
 
-Malicious non-root (unprivileged) services are concern--such attacks can arise from gaining remote code execution on a vulnerable service.  The secret management design should be resistant to such attacks should they occur.
+Malicious non-privileged services are a concern. This can occur through a wide variety of software supply chain attacks, as well as implementation bugs that permit a service to exhibit unintended functionality.
 
-The industrial espionage or malicious developer adversary deserves some explanation.  Whereas the remote hacker adversary is primarily motivated by a one-time attack, the industrial espionage attacker seeks to maintain a persistent foothold or to insert back-doors into an entire fleet of devices.  Mitigation of BORE attacks, such as device-unique secrets, secret rotation, and key wrapping to thwart observability are all protections against this type of adversary.
+The industrial espionage or malicious developer adversary deserves some explanation.  Whereas the remote hacker adversary is primarily motivated by a one-time attack, the industrial espionage attacker seeks to maintain a persistent foothold or to insert back-doors into an entire fleet of devices.  Making each device unique (e.g. device-unique secrets) helps to mitigate against break-once-run-everywhere (BORE) attacks.
 
 ## Threat Matrix
 
 The threat matrix indicates what assets are at risk for the various attack surfaces in the system.
 
-|                           | Consul DS | Consul API | Vault API | Host FS | PKI agent | Vault agent | Token svc | Proc mem |
-| ------------------------- | --------- | ---------- | --------- | ------- | --------- | ----------- | --------- | -------- |
-| Application secrets       |           |            | *a        |         |           |             |           | *p       |
-| Vault service token       |           |            | *bd       | *bd     |           |             | *b        | *p       |
-| Vault token-issuing-token |           |            | *e        | *e      |           | *e          | *e        | *p       |
-| Vault root token          |           |            | *f        |         |           | *f          |           | *p       |
-| Vault master key          |           |            | *g        | *g      |           | *g          |           | *p       |
-| Vault DS                  | *hi       | *hi        |           |         |           |             |           |          |
-| Consul DS                 |           |            |           | *j      |           |             |           |          |
-| PKI CA                    |           |            |           |         |           |             |           | *p       |
-| PKI intermediate          |           |            | *l        |         | *l        |             |           | *p       |
-| PKI leaf                  |           |            |           | *m      | *m        |             |           | *p       |
-| PGP Password              |           |            |           | *o      |           | *o          |           | *p       |
+|                     | Consul API | Vault API | Host FS | PKI agent | Vault agent | Token svc | /proc /mem |
+| ------------------- | ---------- | --------- | ------- | --------- | ----------- | --------- | ---------- |
+| Application secrets |            | *a        |         |           |             |           | *p         |
+| Vault service token |            | *bd       | *b      |           |             | *bd       | *p         |
+| Token-issuing-token |            | *e        | *e      |           | *e          | *e        | *p         |
+| Vault root token    |            | *f        | *f      |           | *f          |           | *p         |
+| Vault master key    |            | *g        | *g      |           | *g          |           | *p         |
+| Vault DS            | *hi        |           |         |           |             |           |            |
+| Consul DS           | *j         |           | *j      |           |             |           |            |
+| PKI CA              |            |           | *m      | *k        |             |           | *p         |
+| PKI intermediate    |            |           | *m      | *l        |             |           | *p         |
+| PKI leaf            |            |           | *m      | *m        |             |           | *p         |
+| Derived key         |            |           |         |           | *o          |           | *p         |
+| IKM                 |            |           | *q      |           |             |           | *p         |
 
 ## Threats and Mitigations
 
@@ -129,206 +140,152 @@ Format:
 
 #### (a1) Loss of confidentiality of application secrets in-flight by MITM attack against the Vault API.
 
+* Service location mechanism is assumed trustworthy (hard-coded localhost, or Docker-supplied DNS)
 * Vault API is protected by TLS verified against a CA certificate.
-* Vault TLS certificate is rotated at every boot.
 
 #### (a2) Loss of confidentiality of application secrets by querying Vault API.
 
 - Application secrets are protected by Vault service token.
+- Each service has a unique token with restricted visibility.
 - Vault service token has limited lifespan and must be periodically renewed.
 
-#### (b) Loss of confidentiality of Vault service token at-rest by file system inspection/monitoring.
+#### (b1) Loss of confidentiality of Vault service token in-flight by MITM attack against the Vault API.
 
-* Vault service token is stored in a Vault cubbyhole instead of on the file system.
-* Vault service tokens are issued with a limited TTL and must be periodically renewed.
-* The cubbyhole token can be exchanged exactly once for a Vault service token.
-* Long-lived Vault service tokens are encrypted at rest with a per-boot unique secret.
-* Token-issuing service generates wrapped tokens in Vault and never observes the actual token.
-* Token issuing service revokes previously-issued per-service token if a new one is regenerated.
+- Service location mechanism is assumed trustworthy (hard-coded localhost, or Docker-supplied DNS)
+- Vault API is protected by TLS verified against a CA certificate.
+
+#### (b2) Loss of confidentiality of Vault service token in-flight by MITM attack against the token server API.
+
+- Token server API is via local Unix domain socket which is a non-routable protocol.
+- Socket location is trusted configuration information.
+
+#### (b3) Loss of confidentiality of Vault service token at-rest by file system inspection/monitoring.
+
+* Container/Snap protections prevent services from reading other services' tokens off of disk.
 * Revoke previously generated tokens on every reboot.
 
-#### (c) Loss of confidentiality of cubbyhole token at-rest by file system inspection/monitoring.
+#### (d1) Loss of availability of Vault service token token via intentional Vault service crash.
 
-* Token-issuing service requires service registration prior to creating cubbyhole token.
-* Token-issuing service never writes cubbyhole token to persistent disk but instead pushes token to service via tmpfs volume mount.
-* Cubbyhole token is protected via per-service user, chroot-like mechanisms, or Mandatory Access Control.
-* Multiple uses of a single-use cubbyhole token are detectable.
-* Impostor service registration is not mitigated.
-* Race conditions where an attacker obtains the cubbyhole token before the legitimate service is an accepted risk. The resulting failure of the legitimate service is detectable.
-
-#### (d) Loss of availability of Vault service token and/or cubbyhole token via intentional service crash.
-
-* Token-issuing service monitors for service restarts / registrations and will regenerate Vault secrets for restarted services automatically.
-* Service tokens are created as orphans (lifecycle is not tied to parent token).
+* Vault service can be configured for automatic restarts via Docker configuration.
+* Vault is automatically unsealed by security service if it is detected as sealed.
+* Security service itself is restartable if it crashes.
+* Service tokens are created as persistent orphans (survive Vault restarts).
 * Services needing long-lived Vault access can renew their own token.
+
+#### (d2) Loss of availability of Vault service token token via intentional Token server crash.
+
+- File-based token server is a one-shot service.
+- Domain-socket token server is included in security service and is restarted on failure.
 
 #### (e1) Loss of confidentiality of token-issuing-token in-flight by MITM attack against the Vault API.
 
-- (Previous mitigations for application secrets (a1) regarding TLS to the Vault server also apply.)
+- See mitigations for threat (b1) above.
 
 #### (e2) Loss of confidentiality of token-issuing-token at-rest by file system inspection/monitoring.
 
-* (Previous mitigations for application secrets (b) regarding passing of the initial token also apply, but token-issuing service must ensure the durability of its own token and cannot depend on another service to regenerate its token.)
+* Container/Snap provided file system protections.
+* Token-issuing token in stored in private tmpfs area in execution environments that support it.
+* Token-issuing token is passed via private channel inside of security service.
 * Token-issuing service is responsible for periodically rotating its own token.
-* The token-issuing token is encrypted via the token issuing service's TLS certificate.
-* The service's TLS certificate is regenerated at each boot to invalidate previous secrets.
-* The service persists is encrypted token-issuing token to a tmpfs volume instead of persistent disk.
 
 #### (e3) Loss of availability of token-issuing token via intentional service crash.
 
-- Token-issuing service must be programmed to automatically restart on failure.
-- Token-issuing service must persist its token-issuing token in a manner (such as a tmpfs file system) that ensures its availability upon service restart.
-- Token-issuing token is created as a orphan (lifecycle is not tied to parent token).
-- Token-issuing service continuing renews its token to extend its TTL.
+- Vault tokens are persistent server-managed handles; the token service can be restarted with impunity.
 
 #### (f1) Loss of confidentiality of Vault root token in-flight by MITM attack against the Vault API.
 
-- (Previous mitigations for application secrets (a1) regarding TLS to the Vault server also apply.)
+- See mitigations for threat (a1) above.
 
 #### (f2) Loss of confidentiality of Vault root token by other means.
 
 * The root token is never persisted to disk and revoked immediately after performing necessary setup during vault initialization (the root token can be regenerated on-demand with the master key).
-* Vault initialization is a one-time job that occurs once upon in early startup, limiting the runtime exposure of the root token.
 
 #### (g1) Loss of confidentiality of Vault master key in-flight by MITM attack against the Vault API.
 
-- (Previous mitigations for application secrets (a1) regarding TLS to the Vault server also apply.)
+- See mitigations for threat (a1) above.
 
-#### (g2) Loss of confidentiality of Vault master key in-use by debugging Vault process.
+#### (g2) Loss of confidentiality of Vault master key at-rest by file system inspection/monitoring.
 
-- There are no mitigations for this attack besides standard operating system protections.
+* Container/Snap provided file system protections.
+* Vault master key is encrypted with AES-256-GCM using a HMAC-KDF derived key from a configurable source.
+* Threat model recommends use of hardware secure storage for the initial key material.
 
-#### (g3) Loss of confidentiality of Vault master key at-rest by file system inspection/monitoring.
+#### (g3) Loss of availability of Vault master key by malicious deletion.
 
-* The root token is never persisted to disk in plain-text form.
-
-<u>Software implementations (MVP)</u> 
-
-  * Vault master key is protected by a password-protected PGP wrapping key.
-
-
-  <u>Hardware implementation (MVP)</u>
-
-  * Vault master key is bound to TPM via unauthenticated sealing with a known primary object in the owner hierarchy.
-  * Wrapped master key is stored in TPM NVRAM.
-  * NVRAM slot is protected against further reading after secret is initially read (once per boot).
-
-  <u>Hardware implementation (post-Edinburgh)</u>
-
-  - TPM protection via local attestation via fixed PCR list supplied in configuration file.
-  - TPM protection via local attestation via PCR policy with data supplied via configuration file.
-  - TPM protection via optional password supplied via environment variable.
-  - PKCS #11 based protection
-
-#### (g4) Loss of availability of Vault master key by malicious deletion.
-
-* For software implementations, Unix file system permissions will be used to protect the wrapped master key.
-* For TPM implementations, the NVRAM slot containing the wrapped master key is protected from deletion.
-* For TPM implementations, the TPM must be cleared via physical presence to delete the wrapped master key.
-* Prevention of TPM clearing is out-of-scope.
+* Container/Snap provided file system protections.
+* Hardware-based solutions are out of scope for the reference design, by may offer additional protections.
 
 #### (h) Lost of confidentiality of Vault data store at-rest by file system inspection/monitoring.
 
 * Vault data store is encrypted using Vault master key before being stored.
 
-#### (i) Lost of availability of Vault data store due to intentional service crash.
+#### (i) Lost of availability of Vault data store due to intentional service crash of Consul.
 
 * Vault data store is implemented on top of Consul, which is a fault-tolerant-capable data store.
+* In Docker-based environments, Consul can be configured to automatically restart on failure.
 
 #### (j1) Loss of confidentiality of Consul data store at-rest by file system inspection/monitoring.
 
 * Consul data store is assumed to be non-confidential and thus there is no threat. Vault data is encrypted prior to be passed to Consul for storage.
 
-#### (j2) Loss of integrity of Consul data store at-rest by file system tampering.
+#### (j2) Loss of integrity or availability of Consul data store at-rest by file system tampering or malicious deletion.
 
-* There are no mitigations for this attack besides standard operating system protections.
-* File system permissions should be set such that only the Consul service has access to its data store.
+* Container/Snap provided file system protections.
 
-#### (j3) Loss of availability of Consul data store at-rest by malicious deletion.
+#### (j3) Loss of availability of Consul data store at runtime due to intentional service crash.
 
-* There are no mitigations for this attack besides standard operating system protections.
-* File system permissions should be set such that only the Consul service has access to its data store.
-
-#### (j4) Loss of availability of Consul data store at runtime due to intentional service crash.
-
-* Consul is configured to automatically restart in the event of failure.
-* Threat may be further mitigated by running Consul in High Availability mode.
+* In Docker-based environments, Consul can be configured to automatically restart on failure.
+* Threat may be further mitigated by running Consul in High Availability mode (not done in reference implementation).
 
 #### (k1) Loss of confidentiality of PKI CA at-rest by file system inspection/monitoring.
 
-* PKI is generated in early startup phase by separate component.
-
-<u>Software implementation (MVP)</u>
-
-- CA is regenerated on every boot to avoid persistent attack on the CA.
-- CA private key is destroyed after generating issuing CA(s) to deter certification of attacker-supplied PKIs.
-
-<u>Hardware implementation (post-Edinburgh)</u>
-
-- PKI CA stored in TPM.
-- Hardware clearing of TPM requires physical presence and is out of scope.
+* Container/Snap provided file system protections.
+* Secure deletion of CA private key after PKI generation.
 
 #### (k2) Loss of integrity of PKI CA by malicious replacement.
 
-* CA certificate is distributed to all services by read-only tmpfs volume mount.
+* Container/Snap provided file system protections.
 
-#### (k3) Loss of availability of PKI CA by malicious deletion.
+#### (k3) Loss of availability of PKI CA (public certificate) by malicious deletion.
 
-* CA certificate is distributed to all services by read-only tmpfs volume mount.
-* Loss via hardware clearing of TPM requires physical presence and is out of scope.
+* Container/Snap provided file system protections.
 
 #### (l1) Loss of confidentiality of PKI intermediate at-rest by file system inspection/monitoring.
 
-* PKI is generated in early startup phase by separate component.
-* Intermediate is regenerated on every boot to avoid persistent attack on the PKI.
-* Intermediate private key is destroyed after generating leaf certificates to deter certification of attacker-supplied leaf certificates.
+* Container/Snap provided file system protections.
+* Secure deletion of CA intermediate private key after PKI generation.
 
 #### (l2) Loss of integrity of PKI intermediate by malicious replacement.
 
-* Intermediate certificate is distributed to all services by read-only tmpfs volume mount.
+* Identical to threat (k3): CA would have to be maliciously replaced as well.
 
-#### (l3) Loss of availability of PKI intermediate by malicious deletion.
+#### (l3) Loss of availability of PKI intermediate (public certificate) by malicious deletion.
 
-* Intermediate certificate is distributed to all services by read-only tmpfs volume mount.
+* Container/Snap provided file system protections.
 
 #### (m1) Loss of confidentiality of PKI leaf at-rest by file system inspection/monitoring.
 
-* PKI is generated in early startup phase by separate component.
-* Leaf certificates are regenerated on every boot to avoid persistent attack on the PKI.
-* Leaf certificate and private key is distributed to specific services by read-only tmpfs volume mount on a per-service basis.
-* Leaf certificate private keys are password protected in storage on a per-service basis using a unique password generated for that installation of the framework.
+* Container/Snap provided file system protections.
+* Note that server TLS private keys must be delivered to services unencrypted due to limitations of dependent services.
 
 #### (m2) Loss of integrity of PKI leaf by malicious replacement.
 
-* Leaf certificate and private key is distributed to specific services by read-only tmpfs volume mount on a per-service basis.
+* Identical to threat (k3/l3): CA or intermediate would have to be maliciously replaced as well.
 
 #### (m3) Loss of availability of PKI leaf by malicious deletion.
 
-* Dependent services will block waiting for leaf certificates and private keys to be pushed to them.
-* Leaf certificate and private key  is distributed to specific services by read-only tmpfs volume mount on a per-service basis.
+* Container/Snap provided file system protections.
 
-#### (n1) Loss of confidentiality of TPM primary object (hardware-based implementations) by re-derivation.
+#### (o) Loss of confidentiality of derived key used to encrypted Vault master key.
 
-- Hardware attacks on the TPM to recovery the primary object private key are out-of-scope.
-- Root-level permissions are required to talk to the TPM device.
-- Primary object is created using known KDF and cached into a persistent handle for performance reasons.
-- The primary object is required by specification to produce an identical primary object when given identical input parameters to the CreatePrimary command.
-- The primary object is required by specification to change its seed every time the TPM is cleared, and no two TPMs are allowed to generate the same primary object.
-- Summary: An attacker is always assumed to be able to recreate the primary at any time--so long as the TPM has not been cleared--on the same device.
-
-#### (n2) Loss of availability of TPM primary object (hardware-based implementations) due to malicious deletion of the persistent handle or clearing of the TPM.
-
-- The primary object is required by specification to produce an identical primary object when given identical input parameters to the CreatePrimary command.
-- Clearing of the TPM requires physical presence: access to physical hardware trumps software attacks.
-
-#### (o) Loss of confidentiality of PGP key and password (software-only implementations) by file system inspection/monitoring.
-
-- The PGP key is protected by a password and is stored on the file system in a manner accessible to the Vault initialization logic.
-- The PGP key must be unique per installation and not shared across devices.
-- The PGP key password SHOULD be derived at runtime from an immutable device identity (e.g. hard disk serial number).
-- Net result is that each device must be attacked individually.
+- Encryption key is passed in memory via IPC pipe.
+- Encryption key is derived from HMAC KDF algorithm using input key material (IKM).
+- KDFs that leverage hardware secure storage may provide additional protections.
 
 #### (p) Disclosure, tampering, or deletion of secrets through /proc/mem or ptrace() by malicous or compromised microservice
 
-- Each microservice must run under a unique UID/GID distict from other microservices.
+- Container/Snap provided memory protections.
 
+#### (q) Lost of confidentiality of input key material (IKM)
+
+- Reference software implementation derives IKM via unique hardware fingerprint and the IKM is never stored on persistent disk.

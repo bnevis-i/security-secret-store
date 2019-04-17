@@ -22,11 +22,13 @@
    e. Implement AES-256-GCM encryption of Vault master key with test cases
    f. Create token-issuing-token in tmpfs area (e.g. SCRATCH/service/token-issuing/vault-token) where for containers SCRATCH is /run and for snaps SCRATCH is /run/snap.edgexfoundry.$snapid
    g. Revoke root token by default and regenerate on-the-fly as needed
-4. Generate per-service tokens at system startup. Implement Vault secrets client library (integrate with registration service client library?)
+   h. Continually monitor Vault health and automatically unseal Vault when it is unsealed with test cases
+4. Generate per-service tokens
    a. Implement `file-server` daemon that bulk-generates tokens and places them in configurable mailbox location
    b. Implement `unix-server-docker` daemon that issues tokens on-demand after authenticating peer PID against Docker
    c. Start `${TOKEN_SERVER}` daemon process after Vault is unsealed (assuming)
-   d. Rename vault-worker to security-service
+   d. Automatically restart `TOKEN_SERVER` if it fails
+   e. Rename vault-worker to security-service
 5. Enhancements to go-mod-core-security
    a. Implement `FILE_TOKEN_HANDLER` to retrieve Vault token from specified file path.
    b. Implement `UNIX_TOKEN_HANDLER` to retrieve Vault token from Unix domain socket
