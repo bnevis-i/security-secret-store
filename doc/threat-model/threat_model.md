@@ -25,6 +25,7 @@ Physical security and hardening of the underlying platform is out-of-scope for i
 
 * Verified/secure boot with a hardware root of trust.  This refers to a trust chain that starts at power-on, verifying the system firmware, boot loaders, drivers, and the core components of the operating system.  Verified boot helps to ensure that an attacker cannot obtain a privileged administrator role during the boot process.
 * File system integrity (e.g. dm-verity) and/or full disk encryption (e.g. LUKS).  Verified/secure boot typically does not apply to user-mode process started after the kernel has booted.  File system integrity checking and/or encryption is an easy way to reduce exposure to off-line tampering such such as resetting the administrator password or installing a back door.
+* Run Vault and vault-initialization flow in a TEE.  Running Vault and the vault-initialization flow in a trusted execution environment--even one based on simple virtualization--will help to restrict the observability of the Vault master key at runtime.
 
 The EdgeX secret store provides hooks for utilizing hardware secure storage to ensure that secrets stored on the device can only be decrypted on that device.  Implementations should use hardware security features where a suitable plug-in is available.  For maximum benefit, hardware security should be combined verified/secure boot, file system protection, and other software-level hardening.
 
@@ -34,9 +35,55 @@ Footnotes:
 
 ## Protections afforded by standard runtime environments
 
+The EdgeX reference code supports Docker-based and Snap-based deployments.  Each of these deployment environments offer sandboxing protections that go beyond a standard Unix user and process model.  As mentioned  earlier, the threat model assumes the sandboxing protections:
+
+* Prevent one service from accessing the protected files of the host or another service.
+* Prevent one service from inspecting the protected memory of another service or processes on the host.
+* Restrict interprocess communication (IPC) mechanisms to a defined set.
+* Allow for private scratch spaces, preferably on a RAMdisk.
+
+In the Linux environment, most of these protections are based on a combination of two technologies: [Linux namespaces](https://lwn.net/Articles/531114/) and mandatory access control (MAC) based on [Linux Security Module (LSM)](https://www.kernel.org/doc/html/v4.15/admin-guide/LSM/index.html).
+
 ### Docker-based runtimes
 
+#### General protections
+
+* The `root` user in a container is subject to namespace constraints and restricted set of [capabilities](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities).
+
+#### File system protections
+
+* Containers by default has no visibility to the host's file system and run with their own root file system that is supplied with the container. The container's file system can be augmented with docker volumes and bind mounts to the host file system to allow specific data sharing scenarios.
+* Containers can be started with tmpfs volumes that are local to that container instance. By default, all files in a container are remapped to an overlay file system stored as files under `/var/lib/docker` where they are observable on the host and stored persistently.
+* The root file system of a container can be mounted read-only.  For writable root file systems, each container gets a fresh copy of the root file system.
+* Content that must be persisted across container restarts must be stored in Docker volumes.
+* Docker volumes can be shared across multiple containers; however, the default "local" driver can only do such sharing when the containers are co-located on the same host.
+
+#### Interprocess communication protections
+
+* Docker containers do not share the host's network interface by default and instead is based on virtual ethernet adapters and bridges.  Network connectivity is strictly controlled via the docker-compose definition.
+* There are networking differences when running Docker on Windows or MacOS machines, due to the use of a hidden Linux virtual machine to actually run Docker.
+* There are few if any IPC restrictions between processes running in the same container due to lack of mandatory access controls.  Each service must run in its own container to ensure maximum service isolation.
+
 ### Snap-based runtimes
+
+#### General protections
+
+* The `root` user in a snap is subject to namespace constraints and MAC rules enforced by LSMs configured as part of the snap.
+
+#### File system protections
+
+* Snaps run inside their own mount namespace, which is a [confined](https://github.com/snapcore/snapd/wiki/Snap-Execution-Environment) view of the host's file system where access to most paths is restricted. This includes sysfs and procfs.  Note: File system paths inside of the snap are homomorphic with the host's view of the file system - any files written in the snap are visible on the host.
+* Snaps can write small temporary files to a tmpfs pointed to by `$XDG_RUNTIME_DIR` which is a [user-private user-writable-directory](https://www.freedesktop.org/software/systemd/man/pam_systemd.html) that is also per-snap. Snaps can write persistent data local to the snap to the `$SNAP_DATA` folder.
+* Snaps do not have the [CAP_SYS_ADMIN](http://man7.org/linux/man-pages/man7/capabilities.7.html), `mount(2)`, capability.
+* [Content interface snaps](https://docs.snapcraft.io/the-content-interface/1074) can be used to allow one snap to share code or data with another snap.
+
+#### Interprocess communication protections
+
+* Snaps can send signals only to processes running inside of the snap.
+* Snaps share the host's network interface rather than having a virtual network interface card.
+* Snaps may have multiple processes running in them and they are allowed to communicate with each other.
+* Snaps may connect to IP sockets opened by processes running outside of the snap.
+* Snaps are not allowed to access `/proc/mem` or `ptrace(2)` other processes.
 
 ## High-level Security Objectives
 

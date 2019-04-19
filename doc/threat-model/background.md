@@ -1,6 +1,12 @@
 # Background
 
-## EdgeX Security Roadmap
+The secret management components comprise a very small portion of the EdgeX framework.  Many components of an actual system are out-of-scope including the underlying hardware platform, the operating system on which the framework is running, the applications that are using it, and even the existence of workload isolation technologies, although the reference code does support deployment as Docker containers or Snaps.
+
+The goal of the EdgeX secret store is to provide general-purpose secret management to EdgeX core services and applications.
+
+![Secret Management In Context](/home/bnevis/edgex-threat-model/doc/threat-model/arch-in-context.jpg)
+
+## Motivation
 
 The EdgeX Foundry security roadmap is published on the Security WG Wiki:
 
@@ -48,7 +54,7 @@ Working top to bottom and left to right:
 * Vault requires TLS to protect secrets in transit. This introduces a requirement to establish an on-device PKI, and the consequent needs to prevent compromise of TLS private keys and unauthorized issuance of TLS certificates. It is difficult to dynamically trust a new certificate authority as the trusted list of certificate authorities is often set at build time not runtime. An alternative is to trust a particular CA at build time, and to pre-populate the PKI during device provisioning.
 * Vault requires a master encryption key to encrypt its database. This master key is generated when the vault is initialized and must be resupplied when Vault is restarted to "unlock" the vault. The implementation must ensure the confidentiality, integrity, and availability of the Vault master key. Normally the vault is manually unsealed using a human process. In IoT scenarios, the vault must be unsealed automatically, which presents additional challenges.
 * Services need to talk to Vault to retrieve their secrets. Thus, the service location mechanism that clients use to establish that connection must be trustworthy / non-spoofable. One option is to hard-code "localhost" or use DNS provided by container orchestration software. The problem is significantly harder if using an outsource service locator, like the Consul service location, as the trust in Consul then needs to be established.
-* There is a general bootstrapping problem for the services themselves: clients need a Vault token to authenticate to Vault. The confidentiality, integrity, and availability of this token needs to be protected, and the token somehow need to be distributed to the service.  If the client tries to pull the token from somewhere, there must be an preexisting mechanism to authenticate the request. Alternatively, the token could be pushed to the service before it is started: environment variable or files are common approaches.  Lastly, there could be an agent that sends the token to a service after it starts, such as by an HTTP API. (Reference: [Cubbyhole authentication principles](https://www.hashicorp.com/blog/cubbyhole-authentication-principles).)   In addition, the previously mentioned PKI problem applies here.
+* There is a general bootstrapping problem for the services themselves: clients need a Vault token to authenticate to Vault. The confidentiality, integrity, and availability of this token needs to be protected, and the token somehow needs to be distributed to the service.  If the client tries to pull the token from somewhere, there must be an preexisting mechanism to authenticate the request. Alternatively, the token could be pushed to the service before it is started: environment variable or files are common approaches.  Lastly, there could be an agent that sends the token to a service after it starts, such as by an HTTP API. (Reference: [Cubbyhole authentication principles](https://www.hashicorp.com/blog/cubbyhole-authentication-principles).)   In addition, the previously mentioned PKI problem applies here.
 * The Vault storage itself must be protected against integrity and availability threats. Confidentiality is provided through the Vault master key.
 
 The secret management design for EdgeX can be said to be finished when there is a sufficiently secure solution to the above challenges for the supported execution models.
