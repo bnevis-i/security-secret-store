@@ -26,7 +26,7 @@ The AS-IS architecture resembles the following diagram:
 
 ![AS-IS](arch-as-is.jpg)
 
-As the diagram notes, the critical secrets for securing the entire on-device infrastructure sit unencrypted on bulk storage media. That the Vault contents is shown as encrypted is misleading: the master key to decrypt the vault is in plaintext nearby. Moreover, the current state is actually worse pictured, as some of these root secrets, in the containerized incarnation of the EdgeX Framework, are mistakenly included in the container images themselves.
+As the diagram notes, the critical secrets for securing the entire on-device infrastructure sit unencrypted on bulk storage media. That the Vault contents is shown as encrypted is misleading: the master key to decrypt the vault is in plaintext nearby.
 
 The Hardware Secure Storage Draft proposes the following future state:
 

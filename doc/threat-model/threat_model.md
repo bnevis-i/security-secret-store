@@ -13,6 +13,7 @@ The threat model presented in this document analyzes the secret management subsy
 * Services are protected from each other and communicate only through defined IPC mechanisms.
 * The service location mechanism is trustworthy/non-spoofable. (Consul is not used for service location.)
 * Services do not run with privilege except where noted.
+* Services running in the same snap or same container are assumed to be within the same trust boundary.
 * There are no unauthorized privileged administrators operating on the device (privileged administrator can bypass all access controls).
 * The framework may be deployed on a device with inbound and outbound Internet connectivity. This is a pessimistic assumption to introduce an anonymous network adversary.
 * The framework may be deployed on a device with limited physical security. This is a pessimistic assumption to introduce simple hardware attacks such as disk cloning.
@@ -25,9 +26,10 @@ Physical security and hardening of the underlying platform is out-of-scope for i
 
 * Verified/secure boot with a hardware root of trust.  This refers to a trust chain that starts at power-on, verifying the system firmware, boot loaders, drivers, and the core components of the operating system.  Verified boot helps to ensure that an attacker cannot obtain a privileged administrator role during the boot process.
 * File system integrity (e.g. dm-verity) and/or full disk encryption (e.g. LUKS).  Verified/secure boot typically does not apply to user-mode process started after the kernel has booted.  File system integrity checking and/or encryption is an easy way to reduce exposure to off-line tampering such such as resetting the administrator password or installing a back door.
-* Run Vault and vault-initialization flow in a TEE.  Running Vault and the vault-initialization flow in a trusted execution environment--even one based on simple virtualization--will help to restrict the observability of the Vault master key at runtime.
 
 The EdgeX secret store provides hooks for utilizing hardware secure storage to ensure that secrets stored on the device can only be decrypted on that device.  Implementations should use hardware security features where a suitable plug-in is available.  For maximum benefit, hardware security should be combined verified/secure boot, file system protection, and other software-level hardening.
+
+Lastly, due consideration should be given to the security of the software supply chain: it is important to ensure that code deployed to a device is what is expected and free of known vulnerabilities.
 
 Footnotes:
 
@@ -46,9 +48,12 @@ In the Linux environment, most of these protections are based on a combination o
 
 ### Docker-based runtimes
 
+All services running within a single container are assumed to be within the same trust boundary, but due to the lack of mandatory access control in Docker containers, it is recommended that each service run in its own container.
+
 #### General protections
 
 * The `root` user in a container is subject to namespace constraints and restricted set of [capabilities](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities).
+* Docker services that must stay running should specify the `restart` property to ensure service availability.
 
 #### File system protections
 
@@ -66,6 +71,8 @@ In the Linux environment, most of these protections are based on a combination o
 
 ### Snap-based runtimes
 
+All services running within a single snap are assumed to be within the same trust boundary.  However, even in a snap, due to the use of mandatory access control, there are stronger-than-normal process isolation policies in place, as documented below.
+
 #### General protections
 
 * The `root` user in a snap is subject to namespace constraints and MAC rules enforced by LSMs configured as part of the snap.
@@ -73,6 +80,7 @@ In the Linux environment, most of these protections are based on a combination o
 #### File system protections
 
 * Snaps run inside their own mount namespace, which is a [confined](https://github.com/snapcore/snapd/wiki/Snap-Execution-Environment) view of the host's file system where access to most paths is restricted. This includes sysfs and procfs.  Note: File system paths inside of the snap are homomorphic with the host's view of the file system - any files written in the snap are visible on the host.
+* All of the files in the snap are read-only with the exception if the below noted paths.  The contents of the snap itself are mounted read-only from a squashfs file system.
 * Snaps can write small temporary files to a tmpfs pointed to by `$XDG_RUNTIME_DIR` which is a [user-private user-writable-directory](https://www.freedesktop.org/software/systemd/man/pam_systemd.html) that is also per-snap. Snaps can write persistent data local to the snap to the `$SNAP_DATA` folder.
 * Snaps do not have the [CAP_SYS_ADMIN](http://man7.org/linux/man-pages/man7/capabilities.7.html), `mount(2)`, capability.
 * [Content interface snaps](https://docs.snapcraft.io/the-content-interface/1074) can be used to allow one snap to share code or data with another snap.
@@ -83,7 +91,7 @@ In the Linux environment, most of these protections are based on a combination o
 * Snaps share the host's network interface rather than having a virtual network interface card.
 * Snaps may have multiple processes running in them and they are allowed to communicate with each other.
 * Snaps may connect to IP sockets opened by processes running outside of the snap.
-* Snaps are not allowed to access `/proc/mem` or `ptrace(2)` other processes.
+* Snaps are not allowed to access `/proc/mem` or to `ptrace(2)` other processes.
 
 ## High-level Security Objectives
 
@@ -112,8 +120,8 @@ Secondary assets are assets are used to support or protect the primary assets an
 
 | AssetId | Name                      | Description                                                  | Attack Points                       |
 | ------- | ------------------------- | ------------------------------------------------------------ | ----------------------------------- |
-| S-1     | Vault service token       | Used by services to authenticate to vault and retrieve application secrets. | In-flight via API, at rest          |
-| S-3     | Vault token-issuing-token | Used by the token issuing service to create vault service tokens and cubbyhole tokens for other services. | In-flight via API, at rest          |
+| S-1     | Vault service token       | Vault service tokens are issued per-service and used by services to authenticate to vault and retrieve per-service application secrets. | In-flight via API, at rest          |
+| S-3     | Vault token-issuing-token | Used by the token issuing service to create vault service tokens for other services. (Called out separately from S-1 due to its high privilege.) | In-flight via API, at rest          |
 | S-4     | Vault root token          | A special token created at Vault initialization time that has all capabilities and never expires. | In-flight via API, at rest          |
 | S-5     | Vault master key          | A root secret that encrypts all of Vault's other secrets.    | In-flight via API, at rest, in-use. |
 | S-6     | Vault data store          | A data store encrypted with the Vault master key that contains the contents of the vault. | In storage                          |
@@ -147,7 +155,7 @@ The adversary model is use-case specific, but for the sake of discussion assume 
 | Thief (Larceny)                            | Quick cash by reselling stolen components.                   | None             | Low            |
 | Remote hacker                              | Financial gain by harvesting resellable information or performing ransomware attacks via exploitable vulnerabilities. | Network          | Medium         |
 | Malicious administrator                    | Out of scope. Cannot defend against attacks originating at level of system software. | N/A              | N/A            |
-| Malicious non-privileged service           | Escalation of privilege.                                     | User mode access | Medium         |
+| Malicious non-privileged service           | Escalation of privilege and data exfiltration. Malicious services includes software supply chain attackers. | User mode access | Medium         |
 | Industrial espionage / Malicious developer | Financial gain or harm by obtaining access to back-end systems and/or competitive data. | Unknown          | High           |
 
 The malicious administrator is out of scope: the threat model assumes that there are no unauthorized privileged administrators on the device. This must be ensured through hardening of the underlying platform, which is out of scope.
