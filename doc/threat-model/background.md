@@ -4,7 +4,7 @@ The secret management components comprise a very small portion of the EdgeX fram
 
 The goal of the EdgeX secret store is to provide general-purpose secret management to EdgeX core services and applications.
 
-![Secret Management In Context](/home/bnevis/edgex-threat-model/doc/threat-model/arch-in-context.jpg)
+![Secret Management In Context](arch-in-context.jpg)
 
 ## Motivation
 
